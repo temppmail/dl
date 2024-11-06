@@ -1,0 +1,108 @@
+# !pip install tensorflow matplotlib
+import tensorflow as tf
+from tensorflow import keras
+import matplotlib.pyplot as plt
+import random
+import numpy as np
+
+cifar10 = tf.keras.datasets.cifar10 # Importing cifar10 dataset
+(x_train, y_train), (x_test, y_test) = cifar10.load_data() # Splitting it into training and testing data
+
+for i in (x_train, y_train, x_test, y_test):
+  print(i.shape)
+
+plt.imshow(x_train[25])
+print(y_train[25])
+plt.show()
+
+#scaling the values
+x_train = x_train/255
+x_test = x_test/255
+# 0/255 = 255
+#255/255 = 1 maximum value
+
+print(x_train.shape, x_test.shape)
+
+num_classes = 10
+class_names = ['airplane','automobile','bird','cat','deer',
+               'dog','frog','horse','ship','truck']
+     
+# Convert class vectors to binary class matrices.
+y_train = tf.keras.utils.to_categorical(y_train, num_classes)
+y_test = tf.keras.utils.to_categorical(y_test, num_classes)
+
+print(y_train.shape, y_test.shape)
+
+from tensorflow import keras
+
+# Create a sequential model
+model = keras.Sequential()
+
+# Convolutional layers
+model.add(keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(32, 32, 3)))
+model.add(keras.layers.MaxPooling2D((2, 2)))
+model.add(keras.layers.Conv2D(64, (3, 3), activation='relu'))
+model.add(keras.layers.MaxPooling2D((2, 2)))
+model.add(keras.layers.Conv2D(64, (3, 3), activation='relu'))
+
+# Fully connected layers
+model.add(keras.layers.Flatten())
+model.add(keras.layers.Dense(64, activation='relu'))
+model.add(keras.layers.Dense(10, activation='softmax'))  # 10 classes for classification
+
+# Compile the model
+model.compile(optimizer='sgd', loss='categorical_crossentropy', metrics=['accuracy'])
+
+# Print the model summary to check the architecture
+model.summary()
+
+# Training the model
+history = model.fit(x_train, y_train,
+              batch_size=30,
+              epochs=10,
+              validation_data=(x_test, y_test),
+              shuffle=True)
+
+import seaborn as sns
+sns.lineplot(model.history.history)
+     
+
+# Plotting the Model Accuracy & Model Loss vs Epochs
+plt.figure(figsize=[10,8])
+
+# summarize history for accuracy
+plt.subplot(1,2,1)
+plt.plot(history.history['accuracy'])
+plt.plot(history.history['val_accuracy'])
+plt.title('Model Accuracy', size=25, pad=20)
+plt.ylabel('Accuracy', size=15)
+plt.xlabel('Epoch', size=15)
+plt.legend(['train', 'test'], loc='upper left')
+
+
+# summarize history for loss
+plt.subplot(1,2,2)
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.title('Model Loss', size=25, pad=20)
+plt.ylabel('Loss', size=15)
+plt.xlabel('Epoch', size=15)
+plt.legend(['train', 'test'], loc='upper left')
+plt.show()
+
+predictions = model.predict(x_test)
+class_names = ['airplane','automobile','bird','cat','deer','dog','frog','horse','ship','truck']
+
+
+plt.figure(figsize=[10,10])
+plt.imshow(x_test[0].reshape(32, 32, -1))
+plt.title("Predicted value: " + str(class_names[np.argmax(predictions[0], axis=0)]), size=20)
+plt.grid(False)
+
+plt.figure(figsize=[10,10])
+plt.imshow(x_test[100].reshape(32, 32, -1))
+plt.title("Predicted value: " + str(class_names[np.argmax(predictions[100], axis=0)]), size=20)
+plt.grid(False)
+
+
+     

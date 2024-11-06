@@ -1,0 +1,50 @@
+from sklearn.metrics import classification_report
+from sklearn.preprocessing import LabelBinarizer
+from tensorflow.keras.datasets import mnist
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.optimizers import SGD
+import matplotlib.pyplot as plt
+import numpy as np
+
+#grabbing the mnist dataset
+
+
+(x_train, y_train),(x_test, y_test) = mnist.load_data()
+x_train = x_train.reshape((x_train.shape[0], 28*28*1))
+x_test = x_test.reshape((x_test.shape[0], 28*28*1))
+x_train = x_train.astype("float32")/255.0
+x_test = x_test.astype("float32")/255.0
+
+lb = LabelBinarizer()
+y_train = lb.fit_transform(y_train)
+y_test = lb.transform(y_test)
+
+model = Sequential([
+    Dense(128, input_shape=(784,), activation="sigmoid"),
+    Dense(64, activation="sigmoid"),
+    Dense(10, activation="softmax")
+])
+
+sgd = SGD(0.01)
+epochs = 10
+
+model.compile(loss="categorical_crossentropy", optimizer=sgd, metrics=["accuracy"])
+
+h = model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs= epochs, batch_size=128)
+
+pred = model.predict(x_test, batch_size=128)
+report = classification_report(y_test.argmax(axis=1), pred.argmax(axis=1), target_names =[str(x) for x in lb.classes_])
+print(report)
+
+plt.style.use("ggplot")
+plt.figure()
+
+plt.plot(range(epochs), h.history["accuracy"], label="accuracy")
+plt.plot(range(epochs), h.history["val_accuracy"], label= "val_accuracy")
+plt.plot(range(epochs), h.history["loss"], label="loss")
+plt.plot(range(epochs), h.history["val_loss"], label="val_loss")
+
+plt.xlabel("epochs")
+plt.ylabel("loss/accuracy")
+plt.legend()

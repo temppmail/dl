@@ -1,0 +1,81 @@
+import tensorflow as tf
+from tensorflow import keras
+import numpy as np
+
+from tensorflow.keras.preprocessing.image import ImageDataGenerat
+
+dataset_dir = "C:\\Users\\kalya\\Downloads\\caltech-101-img\\caltech-101-img" #Specifies the directory path where the dataset is located
+dataset_datagen = ImageDataGenerator(
+    rescale=1.0 / 255,
+)
+#normalises the image
+
+# # here batch_size is the number of images in each batch
+batch_size = 2000
+dataset_generator = dataset_datagen.flow_from_directory(
+    dataset_dir,
+    target_size=(64, 64), #resizes the image into 64 by 64 pixel
+    batch_size=batch_size, #Sets the batch size for training.
+    class_mode='categorical' # labels are one-hot encoded
+)
+
+x_train, y_train =  dataset_generator[0]
+x_test, y_test = dataset_generator[1]
+
+print(len(x_train))
+print(len(x_test))
+
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense, Flatten
+from tensorflow.keras.optimizers import Adam
+
+from tensorflow.keras.applications import VGG16
+
+weights_path = "vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5"
+base_model = VGG16(weights=weights_path, include_top=False, input_shape=(64, 64, 3))
+
+for layer in base_model.layers:
+   layer.trainable = False
+
+x = Flatten()(base_model.output)
+# Explanation: This line adds a Flatten layer to the output of the base_model. The Flatten layer is used to transform the 3D tensor output from the convolutional base (which is usually the output of the last convolutional layer) into a 1D tensor. This flattening step is necessary when transitioning from convolutional layers to densely connected layers.
+# Example: Suppose the output shape of base_model is (7, 7, 512). This means you have a 3D tensor with dimensions 7x7x512. Applying the Flatten layer converts this 3D tensor into a 1D tensor by unraveling the values along the dimensions. In this case, the resulting 1D tensor would have a size of 7 * 7 * 512 = 25088.
+x = Dense(64, activation='relu')(x)
+predictions = Dense(102, activation='softmax')(x)
+
+# Create the model
+model = Model(inputs=base_model.input, outputs=predictions)
+# Compile the model
+model.compile(optimizer="adam", loss='categorical_crossentropy', metrics=['accura
+
+base_model = VGG16(weights=weights_path, include_top=False, input_shape=(64, 64, 3))
+# freeze all layers first
+for layer in base_model.layers:
+   layer.trainable = False
+# unfreeze last 4 layers of base model
+for layer in base_model.layers[len(base_model.layers) - 2:]:
+   layer.trainable = True
+# fine-tuning hyper parameters
+x = Flatten()(base_model.output)
+x = Dense(512, activation='relu')(x)
+x = tf.keras.layers.Dropout(0.3)(x)
+predictions = Dense(102, activation='softmax')(x)
+
+# Create the model
+model = Model(inputs=base_model.input, outputs=predictions)
+# Compile the model
+model.compile(optimizer=Adam(learning_rate=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
+# training fine tuned model
+model.fit(x_train, y_train, batch_size=64, epochs=20, validation_data=(x_test, y_test))
+
+import matplotlib.pyplot as plt
+predicted_value = model.predict(x_test)
+
+labels = list(dataset_generator.class_indices.keys())
+
+n = 887
+
+plt.imshow(x_test[n])
+print("Preditcted: ",labels[np.argmax(predicted_value[n])])
+print("Actual: ", labels[np.argmax(y_test[n])])
+

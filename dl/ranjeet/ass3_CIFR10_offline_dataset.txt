@@ -1,0 +1,104 @@
+# !pip install tensorflow matplotlib
+import tensorflow as tf
+from tensorflow import keras
+import matplotlib.pyplot as plt
+import random
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+import numpy as np
+
+# Define the paths to the training and testing data directories
+# D:\Eng\B.E\DL\deepLearning\dataset\cifar-10-img\cifar-10-img\train
+train_data_dir = 'dataset/cifar-10-img/cifar-10-img/train'
+test_data_dir = 'dataset/cifar-10-img/cifar-10-img/test
+
+# Set up an ImageDataGenerator to rescale pixel values to [0, 1]
+image_data_generator = ImageDataGenerator(rescale=1.0/255)
+
+# Define batch sizes
+train_batch_size = 20000
+test_batch_size = 2000
+
+# Create data generators for training and testing
+train_generator = image_data_generator.flow_from_directory(
+    train_data_dir,
+    target_size=(32, 32),  # Resize images to 28x28 pixels
+    batch_size=train_batch_size,  # Number of images per training batch
+    class_mode='categorical',  # One-hot encoded labels
+    shuffle=True,  # Shuffle the order of images during training
+)
+
+test_generator = image_data_generator.flow_from_directory(
+    test_data_dir,
+    target_size=(32, 32),  # Resize images to 28x28 pixels
+    batch_size=test_batch_size,  # Number of images per testing batch
+    class_mode='categorical',  # One-hot encoded labels
+    shuffle=True,  # Shuffle the order of images during testing
+)
+
+x_train, y_train = train_generator[0]
+x_test, y_test = test_generator[0]
+
+
+print(f"Shape of X_train {x_train.shape}")
+print(f"Shape of y_train {y_train.shape}")
+print(f"Shape of x_test  {x_test.shape}")
+print(f"Shape of y_test  {y_test.shape}")
+
+num_classes = 10
+class_names = ['airplane','automobile','bird','cat','deer',
+               'dog','frog','horse','ship','truck']
+
+x_train.shape[1:]
+
+# Create a list of layers
+model = keras.Sequential([
+    layers.Conv2D(32, (3, 3), activation='relu', input_shape=(32, 32, 3)),
+    layers.BatchNormalization(),
+    layers.Conv2D(32, (3, 3), activation='relu'),
+    layers.BatchNormalization(),
+    layers.MaxPooling2D((2, 2)),
+    
+    layers.Conv2D(64, (3, 3), activation='relu'),
+    layers.BatchNormalization(),
+    layers.MaxPooling2D((2, 2)),
+    
+    layers.Conv2D(128, (3, 3), activation='relu'),
+    layers.BatchNormalization(),
+    layers.MaxPooling2D((2, 2)),
+    
+    layers.Flatten(),
+    layers.Dense(512, activation='relu'),
+    layers.Dropout(0.2),
+    
+    layers.Dense(512, activation='relu'),
+    layers.Dropout(0.2),
+    
+    layers.Dense(10, activation='softmax')
+])
+
+from tensorflow.keras.optimizers import SGD
+# Compile the model
+sgd_optimizer = SGD(learning_rate=0.01)
+
+model.compile(optimizer=sgd_optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+
+# Training the model
+history = model.fit(x_train, y_train,
+              batch_size=20,
+              epochs=10,
+              validation_data=(x_test, y_test),
+              shuffle=True)
+
+import seaborn as sns
+sns.lineplot(model.history.history)
+
+test_loss, test_acc = model.evaluate(x_test, y_test)
+print("Loss: ", test_loss)
+print("Accuracy: ", test_acc)
+
+predicted_value=model.predict(x_test)
+plt.imshow(x_test[50])
+plt.show()
+print(class_names[np.argmax(predicted_value[50], axis=0)])
+
+

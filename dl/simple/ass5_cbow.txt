@@ -1,0 +1,87 @@
+# Install gensim
+!pip install gensim
+
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Embedding, Lambda
+from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing import sequence
+import gensim
+
+# Sample text document
+document = "The quick brown fox jumps over the lazy dog. The dog barked at the fox."
+
+# Tokenize and preprocess
+tokenizer = Tokenizer()
+tokenizer.fit_on_texts([document])
+word2idx = tokenizer.word_index
+idx2word = {v: k for k, v in word2idx.items()}
+vocab_size = len(word2idx) + 1  # Vocabulary size (including padding)
+
+# Convert document to a sequence of word indexes
+word_sequence = tokenizer.texts_to_sequences([document])[0]
+
+# Function to generate CBOW training data
+def generate_cbow_data(data, window_size, total_vocab):
+    total_length = window_size * 2
+    for idx, word in enumerate(data):
+        context_word = []
+        target = []
+
+        begin = idx - window_size
+        end = idx + window_size + 1
+        context_word.append([data[i] for i in range(begin, end) if 0 <= i < len(data) and i != idx])
+        target.append(word)
+
+        contextual = sequence.pad_sequences(context_word, maxlen=total_length)
+        final_target = to_categorical(target, total_vocab)
+        yield (contextual, final_target)
+
+# Generate CBOW training data
+X_train = []
+y_train = []
+
+# Populate X_train and y_train from the generator
+for x, y in generate_cbow_data(word_sequence, window_size=2, total_vocab=vocab_size):
+    X_train.append(x[0])  # x is a list containing the context sequence
+    y_train.append(y[0])  # y is a one-hot encoded target
+
+# Convert lists to numpy arrays
+X_train = np.array(X_train)
+y_train = np.array(y_train)
+
+# Set embedding dimensions
+embedding_dim = 100
+
+# Build CBOW model
+cbow_model = Sequential([
+    Embedding(input_dim=vocab_size, output_dim=embedding_dim, input_length=4),
+    Lambda(lambda x: tf.reduce_mean(x, axis=1)),  # Average embeddings of context words
+    Dense(vocab_size, activation='softmax')
+])
+
+# Compile the model
+cbow_model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+
+# Train the model
+cbow_model.fit(X_train, y_train, epochs=100, verbose=1)
+
+# Save word embeddings to a file
+word_embeddings = cbow_model.layers[0].get_weights()[0]  # Extract embeddings from the first layer
+
+# Write embeddings in the required format for Gensim
+with open('word_embeddings.txt', 'w') as f:
+    # Write the header with vocab_size and embedding_dim
+    f.write(f"{vocab_size-1} {embedding_dim}\n")  # Exclude padding token (index 0)
+    
+    # Write each word and its corresponding embedding
+    for i in range(1, vocab_size):  # Skip index 0 (padding token)
+        word = idx2word[i]
+        embedding = word_embeddings[i]
+        f.write(f"{word} {' '.join(map(str, embedding))}\n")
+
+print("Word embeddings saved to 'word_embeddings.txt'.")
+word_vectors = gensim.models.KeyedVectors.load_word2vec_format('word_embeddings.txt', binary=False)
+print(word_vectors.most_similar(positive=['fox']))

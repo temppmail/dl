@@ -1,0 +1,49 @@
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import GlobalAveragePooling2D, Dense, Dropout
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
+# Load a pre-trained model (e.g., ResNet50) without the top classifier layers
+base_model = keras.applications.ResNet50(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+
+# Freeze the base model
+base_model.trainable = False
+
+# Build the custom classifier on top
+model = Sequential([
+    base_model,
+    GlobalAveragePooling2D(),  # Pooling layer
+    Dense(128, activation='relu'),  # Custom dense layer
+    Dropout(0.5),  # Dropout for regularization
+    Dense(10, activation='softmax')  # Output layer (adjust output units as needed)
+])
+
+# Compile the model
+model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001),
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+
+# Load your image dataset
+# Use an image data generator for augmentation and loading data
+train_datagen = ImageDataGenerator(rescale=1./255, horizontal_flip=True, rotation_range=20)
+train_generator = train_datagen.flow_from_directory('path_to_training_data', target_size=(224, 224), batch_size=32, class_mode='categorical')
+
+# Train the classifier layers
+history = model.fit(train_generator, epochs=10)
+
+# Fine-tuning: unfreeze more layers as needed
+base_model.trainable = True
+for layer in base_model.layers[:100]:  # Adjust the number of layers to unfreeze
+    layer.trainable = False
+
+# Re-compile the model after unfreezing
+model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.0001),
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+
+# Continue training
+history_fine = model.fit(train_generator, epochs=5)
+
+# Save the model
+model.save('object_detection_model.h5')

@@ -1,0 +1,93 @@
+# Importing libraries
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+import tensorflow as tf
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Dense, Dropout
+
+# Load the credit card dataset
+data = pd.read_csv("http://storage.googleapis.com/download.tensorflow.org/data/ecg.csv", header=None)
+
+# Preprocess the data
+scaler = MinMaxScaler(feature_range=(0, 1))
+data_scaled = scaler.fit_transform(data)
+
+# Split the data into features and target
+X = data_scaled[:, :-1]
+y = data_scaled[:, -1]
+
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
+
+# Select only normal data for training (assuming label 1 is normal)
+train_index = np.where(y_train == 1)
+X_train_normal = X_train[train_index]
+
+# Scale the normal training data
+X_train_scaled = scaler.fit_transform(X_train_normal)
+X_test_scaled = scaler.transform(X_test)
+
+# Define the encoder
+input_layer = Input(shape=(X_train_scaled.shape[1],))
+encoded = Dense(64, activation='relu')(input_layer)
+encoded = Dropout(0.1)(encoded)
+encoded = Dense(32, activation='relu')(encoded)
+encoded = Dropout(0.1)(encoded)
+encoded = Dense(16, activation='relu')(encoded)
+encoded = Dropout(0.1)(encoded)
+encoded = Dense(8, activation='relu')(encoded)
+
+# Define the decoder
+decoded = Dense(16, activation='relu')(encoded)
+decoded = Dropout(0.1)(decoded)
+decoded = Dense(32, activation='relu')(decoded)
+decoded = Dropout(0.1)(decoded)
+decoded = Dense(64, activation='relu')(decoded)
+decoded = Dropout(0.1)(decoded)
+output_layer = Dense(X_train_scaled.shape[1], activation='sigmoid')(decoded)
+
+# Build the Autoencoder model
+autoencoder = Model(inputs=input_layer, outputs=output_layer)
+autoencoder.compile(optimizer='adam', loss='msle', metrics=['mse'])
+
+# Train the model
+history = autoencoder.fit(X_train_scaled, X_train_scaled,
+                          epochs=20,
+                          batch_size=512,
+                          validation_data=(X_test_scaled, X_test_scaled))
+
+# Plot training history
+plt.figure()
+plt.plot(history.history['loss'], label='Training Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.xlabel('Epochs')
+plt.ylabel('MSLE Loss')
+plt.legend()
+plt.show()
+
+# Function to find the threshold for anomaly detection
+def find_threshold(model, X_train_scaled):
+    reconstructions = model.predict(X_train_scaled)
+    reconstruction_errors = tf.keras.losses.msle(X_train_scaled, reconstructions)
+    threshold = np.mean(reconstruction_errors.numpy()) + np.std(reconstruction_errors.numpy())
+    return threshold
+
+# Function to get predictions
+def get_predictions(model, X_test_scaled, threshold):
+    reconstructions = model.predict(X_test_scaled)
+    errors = tf.keras.losses.msle(X_test_scaled, reconstructions)
+    anomaly_mask = pd.Series(errors.numpy()) > threshold
+    predictions = anomaly_mask.map(lambda x: 0.0 if x else 1.0)
+    return predictions
+
+# Find the threshold and make predictions
+threshold = find_threshold(autoencoder, X_train_scaled)
+print(f"Threshold: {threshold}")
+
+predictions = get_predictions(autoencoder, X_test_scaled, threshold)
+accuracy = accuracy_score(y_test, predictions)
+print(f"Accuracy: {accuracy}")
