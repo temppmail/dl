@@ -1,0 +1,79 @@
+# Import required libraries
+import string
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.layers import Embedding, Lambda, Dense
+from tensorflow.keras.models import Sequential
+import seaborn as sns
+
+# Input text
+text = """
+The speed of transmission is an important point of difference between the two viruses. 
+Influenza has a shorter median incubation period (the time from infection to appearance of symptoms) and a shorter serial interval (the time between successive cases) than COVID-19 virus. 
+The serial interval for COVID-19 virus is estimated to be 5-6 days, while for influenza virus, the serial interval is 3 days. This means that influenza can spread faster than COVID-19. 
+
+Further, transmission in the first 3-5 days of illness, or potentially pre-symptomatic transmission – transmission of the virus before the appearance of symptoms – is a major driver of transmission for influenza. 
+In contrast, while we are learning that there are people who can shed COVID-19 virus 24-48 hours prior to symptom onset, at present, this does not appear to be a major driver of transmission. 
+
+The reproductive number – the number of secondary infections generated from one infected individual – is understood to be between 2 and 2.5 for COVID-19 virus, higher than for influenza. 
+However, estimates for both COVID-19 and influenza viruses are very context and time-specific, making direct comparisons more difficult.
+"""
+
+# Step 1: Preprocess the text data
+dl_data = text.split()
+text_data = [word.translate(str.maketrans('', '', string.punctuation)).lower() for word in dl_data]
+
+# Step 2: Tokenize the text
+tk = Tokenizer()
+tk.fit_on_texts(text_data)
+w2idx = tk.word_index
+idx2w = {v: k for k, v in w2idx.items()}
+
+# Step 3: Prepare the dataset for training
+sentence = [w2idx.get(w) for w in text_data]
+target = []
+context = []
+context_size = 2
+embedding_size = 10
+vocab_size = len(w2idx) + 1
+
+# Create target and context words for training
+for i in range(context_size, len(sentence) - context_size):
+    target.append(sentence[i])
+    temp = sentence[i - context_size:i] + sentence[i + 1:i + 1 + context_size]
+    context.append(temp)
+
+# Convert to numpy arrays
+x = np.array(context)
+y = np.array(target)
+
+# Step 4: Define the model architecture
+model = Sequential([
+    Embedding(input_dim=vocab_size, output_dim=embedding_size, input_length=2 * context_size),
+    Lambda(lambda x: tf.reduce_mean(x, axis=1)),
+    Dense(256, activation='relu'),
+    Dense(512, activation='relu'),
+    Dense(vocab_size, activation='softmax')
+])
+
+# Compile the model
+model.compile(optimizer='adam', metrics=['accuracy'], loss=tf.keras.losses.SparseCategoricalCrossentropy())
+
+# Display the model summary
+model.summary()
+
+# Step 5: Train the model
+history = model.fit(x, y, epochs=100)
+
+# Plot training accuracy
+sns.lineplot(x=range(1, 101), y=history.history['accuracy'])
+
+# Step 6: Test the model
+test = ['the', 'speed', 'transmission', 'is']
+temp = [w2idx.get(t) for t in test]
+inp = np.array([temp])
+pred = model.predict(inp)
+predicted_word = idx2w.get(pred.argmax())
+
+print(f"The predicted word is: {predicted_word}")
