@@ -1,0 +1,72 @@
+import tensorflow as tf
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
+base_model = tf.keras.applications.VGG16(weights=r"vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5", include_top=False, input_shape=(224, 224, 3))
+
+# Freeze the base model layers initially
+for layer in base_model.layers:
+    layer.trainable = False
+
+# Add custom head for classification only (no bounding box)
+x = base_model.output
+x = MaxPooling2D()(x)  # Global pooling to reduce the output size
+x = Dense(16, activation='relu')(x)
+x = Dense(8, activation='relu')(x)
+
+class_output = Dense(102, activation='softmax', name='class')(x)  
+
+# Define the complete model
+model = Model(inputs=base_model.input, outputs=class_output)
+
+# Compile the model
+model.compile(optimizer=Adam(learning_rate=0.0001),
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+
+
+# Prepare data (using ImageDataGenerator for augmentation)
+train_datagen = ImageDataGenerator(rescale=1./255, validation_split=0.3)
+
+# Load training and validation data
+train_generator = train_datagen.flow_from_directory(
+    r"Object Detection(Ass6)\caltech-101-img",  # Change to your data path
+    target_size=(224, 224),
+    batch_size=16,
+    subset='training'
+)
+
+validation_generator = train_datagen.flow_from_directory(
+    r"Object Detection(Ass6)\caltech-101-img",  # Change to your data path
+    target_size=(224, 224),
+    batch_size=16,
+    subset='validation'
+)
+# Train the model on the custom classifier head only
+model.fit(
+    train_generator,
+    validation_data=validation_generator,
+    epochs=1
+)
+
+
+# Unfreeze the last 3 layers of the base model
+for layer in base_model.layers[-3:]:  # Unfreeze the last 3 layers
+    layer.trainable = True
+
+# Re-compile the model after unfreezing the layers
+model.compile(optimizer=Adam(learning_rate=0.0001),
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+
+# Fine-tune the model (train the last few layers)
+model.fit(
+    train_generator,
+    validation_data=validation_generator,
+    epochs=5  # Fine-tune for more epochs
+)
+
+
+
